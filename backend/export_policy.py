@@ -15,9 +15,18 @@ taking it from roughly 1.2 GB to under 400 MB and bringing 512 MB
 free tiers into range.
 
 Training still uses torch as before; only serving changes.
+
+If torch / stable-baselines3 are not installed, the weights are read
+straight out of the checkpoint zip with NumPy instead (the torch-vs-
+NumPy verification step is skipped in that case).
 """
 
+import io
+import json
+import pickle
 import sys
+import zipfile
+from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +47,63 @@ POLICY_KEYS = [
     "action_net.weight", "action_net.bias",
 ]
 
+# torch storage class name -> NumPy dtype, for the torch-free reader
+_STORAGE_DTYPES = {
+    "FloatStorage": np.float32, "DoubleStorage": np.float64,
+    "HalfStorage": np.float16, "LongStorage": np.int64,
+    "IntStorage": np.int32, "ShortStorage": np.int16,
+    "CharStorage": np.int8, "ByteStorage": np.uint8, "BoolStorage": np.bool_,
+}
+
+
+class _StorageType:
+    def __init__(self, name):
+        self.name = name
+
+
+def _rebuild_tensor(storage, offset, size, stride, *_):
+    itemsize = storage.dtype.itemsize
+    return np.lib.stride_tricks.as_strided(
+        storage[offset:], shape=tuple(size),
+        strides=tuple(s * itemsize for s in stride),
+    ).copy()
+
+
+def read_without_torch(model_path: Path):
+    """
+    Read the policy state_dict and spaces from an SB3 checkpoint zip
+    using only NumPy. Returns (state, action_low, action_high, obs_dim).
+    """
+    with zipfile.ZipFile(model_path) as outer:
+        meta = json.loads(outer.read("data"))
+        pth = zipfile.ZipFile(io.BytesIO(outer.read("policy.pth")))
+
+    root = pth.namelist()[0].split("/")[0]
+
+    class Unpickler(pickle.Unpickler):
+        def find_class(self, module, name):
+            if name in _STORAGE_DTYPES:
+                return _StorageType(name)
+            if name.startswith("_rebuild_tensor"):
+                return _rebuild_tensor
+            if (module, name) == ("collections", "OrderedDict"):
+                return OrderedDict
+            raise pickle.UnpicklingError(f"unexpected global {module}.{name}")
+
+        def persistent_load(self, pid):
+            _, storage_type, key, _location, _numel = pid
+            raw = pth.read(f"{root}/data/{key}")
+            return np.frombuffer(raw, dtype=_STORAGE_DTYPES[storage_type.name])
+
+    state = Unpickler(io.BytesIO(pth.read(f"{root}/data.pkl"))).load()
+
+    def parse(text):
+        return np.array(text.strip("[]").split(), dtype=np.float32)
+
+    action = meta["action_space"]
+    obs_dim = meta["observation_space"]["_shape"][0]
+    return state, parse(action["low"]), parse(action["high"]), obs_dim
+
 
 def main() -> int:
     model_path = next((p for p in CANDIDATES if p.exists()), None)
@@ -52,13 +118,19 @@ def main() -> int:
     try:
         from stable_baselines3 import PPO
     except ImportError:
-        print("ERROR: stable-baselines3 is not installed in this environment.")
-        print("Run this with the venv python that you trained with.")
-        return 1
+        PPO = None
 
     print(f"Loading {model_path}")
-    model = PPO.load(str(model_path), device="cpu")
-    state = model.policy.state_dict()
+    if PPO is None:
+        print("stable-baselines3 not installed — reading the checkpoint with NumPy")
+        model = None
+        state, low, high, obs_dim = read_without_torch(model_path)
+    else:
+        model = PPO.load(str(model_path), device="cpu")
+        state = model.policy.state_dict()
+        low = np.asarray(model.action_space.low, dtype=np.float32)
+        high = np.asarray(model.action_space.high, dtype=np.float32)
+        obs_dim = model.observation_space.shape[0]
 
     missing = [k for k in POLICY_KEYS if k not in state]
     if missing:
@@ -74,13 +146,14 @@ def main() -> int:
         )
         return 1
 
-    weights = {k: state[k].detach().cpu().numpy().astype(np.float32) for k in POLICY_KEYS}
+    if model is None:
+        weights = {k: np.asarray(state[k], dtype=np.float32) for k in POLICY_KEYS}
+    else:
+        weights = {k: state[k].detach().cpu().numpy().astype(np.float32) for k in POLICY_KEYS}
 
-    low = np.asarray(model.action_space.low, dtype=np.float32)
-    high = np.asarray(model.action_space.high, dtype=np.float32)
     weights["_action_low"] = low
     weights["_action_high"] = high
-    weights["_obs_dim"] = np.array([model.observation_space.shape[0]], dtype=np.int32)
+    weights["_obs_dim"] = np.array([obs_dim], dtype=np.int32)
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(OUT, **weights)
@@ -90,14 +163,21 @@ def main() -> int:
     print(f"  observation dim : {int(weights['_obs_dim'][0])}")
     print(f"  action bounds   : [{low.min()}, {high.max()}]")
 
-    # ── Verify the NumPy path reproduces torch ───────────
-    print("\nVerifying NumPy inference against torch...")
     sys.path.insert(0, str(BACKEND))
     from rl.policy_numpy import NumpyPolicy
 
     policy = NumpyPolicy(OUT)
     rng = np.random.RandomState(0)
-    obs_dim = int(weights["_obs_dim"][0])
+
+    if model is None:
+        action = policy.predict(rng.randn(obs_dim).astype(np.float32))
+        print(f"\nNumPy policy loads and predicts: {action}")
+        print("(torch not installed, so the torch comparison was skipped)")
+        print("\nNext: commit models/policy_weights.npz and deploy.")
+        return 0
+
+    # ── Verify the NumPy path reproduces torch ───────────
+    print("\nVerifying NumPy inference against torch...")
 
     worst = 0.0
     for _ in range(200):
