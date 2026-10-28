@@ -1,0 +1,28 @@
+# Python
+backend/venv/
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Generated at image-build time
+backend/rag/chroma_db/
+
+# Training artefacts — NOT the trained models, which must ship
+backend/logs/
+backend/runs/
+backend/wandb/
+
+# Secrets — set them as Render env vars instead
+.env
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Local scratch
+*.bak
+backend/results.txt
+backend/startup.log
+.DS_Store

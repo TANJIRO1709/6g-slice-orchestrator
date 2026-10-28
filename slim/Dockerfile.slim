@@ -1,0 +1,70 @@
+# ─────────────────────────────────────────────────────────
+# 6G Slice Orchestrator — slim deployment image
+#
+# Serves the trained PPO policy from NumPy weights instead of
+# loading it through torch, which removes torch and
+# stable-baselines3 from the image:
+#
+#     full  ~1.2 GB image, ~600 MB resident  → needs a paid tier
+#     slim  ~550 MB image, ~300 MB resident  → fits 512 MB free tiers
+#
+# Prerequisite, run once on your own machine:
+#     cd backend && ./venv/bin/python export_policy.py
+#
+# Build from the PROJECT ROOT:
+#     docker build -f Dockerfile.slim -t 6g-orchestrator .
+# ─────────────────────────────────────────────────────────
+
+# ── Stage 1: build the dashboard ─────────────────────────
+FROM node:20-slim AS frontend
+
+WORKDIR /ui
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm install
+
+COPY frontend/ ./
+
+ENV NEXT_PUBLIC_API_URL=""
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm run build
+
+
+# ── Stage 2: backend + static dashboard ──────────────────
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DIAGNOSE_EVERY=20
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements-slim.txt ./
+RUN pip install --no-cache-dir -r requirements-slim.txt
+
+COPY backend/ ./
+
+# Fail early and loudly if the exported weights are missing, rather
+# than deploying an image whose AI (PPO) strategy silently does nothing.
+RUN test -f models/policy_weights.npz || ( \
+      echo "" && \
+      echo "ERROR: models/policy_weights.npz is missing." && \
+      echo "Run this on your machine first, then rebuild:" && \
+      echo "    cd backend && ./venv/bin/python export_policy.py" && \
+      echo "" && exit 1 )
+
+COPY --from=frontend /ui/out ./static
+
+# Build the RAG index at image-build time. This also pulls the ~80 MB
+# ONNX embedding model into the image layer so the first request after
+# deploy is fast instead of timing out during the download.
+RUN python -m rag.indexer --local
+
+EXPOSE 7860
+CMD ["sh", "-c", "uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-7860}"]

@@ -1,0 +1,29 @@
+# ── Core ─────────────────────────────────────────────────
+numpy>=1.24.0
+scipy>=1.10.0
+
+# ── Simulator + reinforcement learning ───────────────────
+# torch is installed separately in the Dockerfile from the
+# CPU-only index; listing it here lets local installs work.
+gymnasium>=0.29.0
+stable-baselines3>=2.1.0
+torch>=2.0.0
+
+# ── API ──────────────────────────────────────────────────
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+pydantic>=2.0.0
+
+# ── RAG (Phase 4) ────────────────────────────────────────
+chromadb>=0.5.0
+onnxruntime>=1.16.0
+
+# ── LLM agents (Phase 5) ─────────────────────────────────
+google-genai>=1.0.0
+python-dotenv>=1.0.0
+
+# ── Utilities ────────────────────────────────────────────
+pandas>=2.0.0
+rich>=13.0.0
+tqdm>=4.65.0

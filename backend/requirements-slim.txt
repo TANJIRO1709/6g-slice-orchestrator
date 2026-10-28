@@ -1,0 +1,30 @@
+# Serving dependencies only — no torch, no stable-baselines3.
+#
+# The trained policy is served from models/policy_weights.npz through
+# rl/policy_numpy.py, so the ~900 MB of torch + SB3 is not needed at
+# runtime. Training still uses backend/requirements.txt as before.
+#
+# Resulting image: ~550 MB, ~300 MB resident — fits a 512 MB free tier.
+
+# ── Core ─────────────────────────────────────────────────
+numpy>=1.24.0
+scipy>=1.10.0
+
+# ── Simulator ────────────────────────────────────────────
+# gymnasium is imported by simulator/__init__.py; it is small and
+# does not pull in torch.
+gymnasium>=0.29.0
+
+# ── API ──────────────────────────────────────────────────
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+pydantic>=2.0.0
+
+# ── RAG (Phase 4) ────────────────────────────────────────
+chromadb>=0.5.0
+onnxruntime>=1.16.0
+
+# ── LLM agents (Phase 5) ─────────────────────────────────
+google-genai>=1.0.0
+python-dotenv>=1.0.0
