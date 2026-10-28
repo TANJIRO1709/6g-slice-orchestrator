@@ -27,3 +27,7 @@ backend/results.txt
 backend/startup.log
 .git/
 .DS_Store
+
+# Local-only Next.js env (e.g. pointing the dashboard at Render)
+.env*.local
+frontend/.env*.local
