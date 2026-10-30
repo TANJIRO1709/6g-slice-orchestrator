@@ -4,13 +4,17 @@
  * Local development: Next runs on :3000, FastAPI on :8000, so
  * requests are sent explicitly to :8000.
  *
- * Deployed: FastAPI serves the compiled dashboard itself, so the
- * backend is the same origin. apiBase() returns "" and fetches
- * use relative paths like "/api/start".
+ * Deployed on Render: FastAPI serves the compiled dashboard itself,
+ * so the backend is the same origin and fetches use relative paths.
+ *
+ * Deployed anywhere else (e.g. Vercel): requests go to the Render
+ * backend at RENDER_BACKEND.
  *
  * Either can be overridden with NEXT_PUBLIC_API_URL /
  * NEXT_PUBLIC_WS_URL when the two are deployed separately.
  */
+
+const RENDER_BACKEND = "https://sixg-slice-orchestrator.onrender.com";
 
 function isLocalHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1";
@@ -25,7 +29,9 @@ export function apiBase(): string {
   const { protocol, hostname } = window.location;
   if (isLocalHost(hostname)) return `${protocol}//${hostname}:8000`;
 
-  return ""; // same origin — relative paths
+  if (window.location.host === new URL(RENDER_BACKEND).host) return ""; // same origin
+
+  return RENDER_BACKEND;
 }
 
 export function wsUrl(): string {
@@ -39,5 +45,7 @@ export function wsUrl(): string {
 
   if (isLocalHost(hostname)) return `${scheme}://${hostname}:8000/ws`;
 
-  return `${scheme}://${host}/ws`;
+  if (host === new URL(RENDER_BACKEND).host) return `${scheme}://${host}/ws`;
+
+  return `${RENDER_BACKEND.replace(/^http/, "ws")}/ws`;
 }
