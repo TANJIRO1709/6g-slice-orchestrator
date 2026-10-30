@@ -117,7 +117,7 @@ function AlertRow({ alert }: { alert: AgentAlert }) {
       <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ring-1 ${style}`}>
         {alert.severity}
       </span>
-      <span className="text-[11px] text-slate-400 leading-snug">{alert.message}</span>
+      <span className="min-w-0 break-words text-[11px] text-slate-400 leading-snug">{alert.message}</span>
     </div>
   );
 }
@@ -144,10 +144,10 @@ export default function AgentPanel({
     <section className="rounded-2xl border border-white/[0.06] bg-gradient-to-br from-[#111827] to-[#0f1521] overflow-hidden">
 
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-white/[0.06]">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-white/[0.06]">
+        <div className="flex items-center gap-3 min-w-0">
           <span className="text-xl">🧠</span>
-          <div>
+          <div className="min-w-0">
             <h2 className="font-bold text-white text-base">Agentic AI Layer</h2>
             <p className="text-[11px] text-slate-500">
               Monitor → Diagnosis → Optimizer, grounded in 3GPP standards
@@ -172,7 +172,8 @@ export default function AgentPanel({
           {/* Toggle */}
           <button
             onClick={() => onToggle(!enabled)}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
+            aria-label="Toggle agentic layer"
+            className={`relative shrink-0 w-12 h-6 rounded-full transition-colors ${
               enabled ? "bg-blue-600" : "bg-white/[0.1]"}`}
           >
             <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
@@ -183,7 +184,7 @@ export default function AgentPanel({
 
       {/* Disabled state */}
       {!enabled && (
-        <div className="px-5 py-10 text-center">
+        <div className="px-4 sm:px-5 py-8 sm:py-10 text-center">
           <p className="text-slate-500 text-sm mb-1">Agentic layer is off</p>
           <p className="text-slate-600 text-xs max-w-md mx-auto">
             Turn it on to let the agents monitor the network, diagnose SLA violations
@@ -197,7 +198,7 @@ export default function AgentPanel({
         <>
           {/* Stats strip */}
           {stats && (
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-px bg-white/[0.04]">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-px bg-white/[0.04]">
               {[
                 ["Alerts", stats.total_alerts],
                 ["Diagnoses", stats.total_diagnoses],
@@ -217,7 +218,7 @@ export default function AgentPanel({
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-px bg-white/[0.04]">
 
             {/* Stage 1 — Monitor */}
-            <div className="bg-[#0f1521] p-4">
+            <div className="min-w-0 bg-[#0f1521] p-4">
               <StageHeader n={1} title="Monitor" subtitle="Detects anomalies"
                 active={alerts.length > 0} />
               {alerts.length === 0 ? (
@@ -240,7 +241,7 @@ export default function AgentPanel({
             </div>
 
             {/* Stage 2 — Diagnosis */}
-            <div className="bg-[#0f1521] p-4">
+            <div className="min-w-0 bg-[#0f1521] p-4">
               <StageHeader n={2} title="Diagnosis" subtitle="Finds root cause via RAG"
                 active={!!diagnosis} />
               {!diagnosis ? (
@@ -265,10 +266,10 @@ export default function AgentPanel({
                     <div className="text-[9px] uppercase tracking-wider text-slate-600 mb-0.5">
                       Root cause
                     </div>
-                    <div className="text-xs text-white font-medium">{diagnosis.root_cause}</div>
+                    <div className="text-xs text-white font-medium break-words">{diagnosis.root_cause}</div>
                   </div>
 
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-[11px] text-slate-400 leading-relaxed break-words">
                     {diagnosis.reasoning}
                   </p>
 
@@ -298,7 +299,7 @@ export default function AgentPanel({
             </div>
 
             {/* Stage 3 — Optimizer */}
-            <div className="bg-[#0f1521] p-4">
+            <div className="min-w-0 bg-[#0f1521] p-4">
               <StageHeader n={3} title="Optimizer" subtitle="Constrains the policy"
                 active={!!decision} />
               {!decision ? (
@@ -312,7 +313,7 @@ export default function AgentPanel({
                     {ACTION_LABEL[actionKey] || actionKey}
                   </span>
 
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                  <p className="text-[11px] text-slate-400 leading-relaxed break-words">
                     {decision.reasoning}
                   </p>
 
@@ -355,7 +356,7 @@ export default function AgentPanel({
 
           {/* Footer */}
           {agent && (
-            <div className="px-5 py-2.5 border-t border-white/[0.06] flex flex-wrap items-center gap-4 text-[10px] text-slate-600">
+            <div className="px-4 sm:px-5 py-2.5 border-t border-white/[0.06] flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-600">
               <span>Cycle latency: <span className="text-slate-400 tabular-nums">{agent.latency_ms} ms</span></span>
               <span>Alerts this step: <span className="text-slate-400 tabular-nums">{agent.alert_count}</span></span>
               {agent.llm_calls > 0 && (
